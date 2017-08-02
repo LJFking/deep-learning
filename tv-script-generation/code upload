@@ -1,0 +1,235 @@
+import numpy as np
+import problem_unittests as tests
+from collections import Counter
+
+def create_lookup_tables(text):
+    """
+    Create lookup tables for vocabulary
+    :param text: The text of tv scripts split into words
+    :return: A tuple of dicts (vocab_to_int, int_to_vocab)
+    """
+    word_counts = Counter(text)
+    sorted_vocab = sorted(word_counts, key=word_counts.get, reverse=True)
+    int_to_vocab = {i: word for i, word in enumerate(sorted_vocab)}
+    vocab_to_int = {word: i for i, word in int_to_vocab.items()}
+    return vocab_to_int, int_to_vocab
+
+
+"""
+DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
+"""
+tests.test_create_lookup_tables(create_lookup_tables)
+
+
+def token_lookup():
+    """
+    Generate a dict to turn punctuation into a token.
+    :return: Tokenize dictionary where the key is the punctuation and the value is the token
+    """
+    token_dict={'.':'||Period||',',':'||Comma||','"':'||Quotation_Mark||',';':'||Semicolon||','!':'||Exclamation_Mark||',
+               '?':'||Question_Mark||','(':'||Left_Parentheses||',')':'||Right_Parentheses||','--':'||Dash||','\n':'||Return||'}
+    
+    return token_dict
+
+"""
+DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
+"""
+tests.test_tokenize(token_lookup)
+
+
+def get_inputs():
+    """
+    Create TF Placeholders for input, targets, and learning rate.
+    :return: Tuple (input, targets, learning rate)
+    """
+    inputs = tf.placeholder(dtype=tf.int32,shape=[None,None],name='input')
+    targets = tf.placeholder(dtype=tf.int32,shape=[None,None],name='targets')
+    learning_rate = tf.placeholder(dtype=tf.float32,name='learning_rate')
+    return inputs, targets, learning_rate
+
+
+"""
+DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
+"""
+tests.test_get_inputs(get_inputs)
+
+
+
+def get_init_cell(batch_size, rnn_size):
+    """
+    Create an RNN Cell and initialize it.
+    :param batch_size: Size of batches
+    :param rnn_size: Size of RNNs
+    :return: Tuple (cell, initialize state)
+    """
+    cell = tf.contrib.rnn.BasicLSTMCell(rnn_size)
+    multi_rnn_cells = tf.contrib.rnn.MultiRNNCell([cell] * 1)
+    initial_state = multi_rnn_cells.zero_state(batch_size,tf.float32)
+    initial_state = tf.identity(initial_state,'initial_state')
+    return multi_rnn_cells, initial_state
+
+"""
+DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
+"""
+tests.test_get_init_cell(get_init_cell)
+
+
+
+
+def get_embed(input_data, vocab_size, embed_dim):
+    """
+    Create embedding for <input_data>.
+    :param input_data: TF placeholder for text input.
+    :param vocab_size: Number of words in vocabulary.
+    :param embed_dim: Number of embedding dimensions
+    :return: Embedded input.
+    """
+    embedding = tf.Variable(tf.random_uniform((vocab_size, embed_dim), -1, 1))
+    embed = tf.nn.embedding_lookup(embedding, input_data)
+    return embed
+
+
+"""
+DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
+"""
+tests.test_get_embed(get_embed)
+
+
+def build_rnn(cell, inputs):
+    """
+    Create a RNN using a RNN Cell
+    :param cell: RNN Cell
+    :param inputs: Input text data
+    :return: Tuple (Outputs, Final State)
+    """
+    outputs, state = tf.nn.dynamic_rnn(cell,inputs,dtype=tf.float32)
+    final_state = state
+    final_state = tf.identity(final_state, 'final_state')
+    return outputs, final_state
+
+
+"""
+DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
+"""
+tests.test_build_rnn(build_rnn)
+
+
+
+
+def build_nn(cell, rnn_size, input_data, vocab_size, embed_dim):
+    """
+    Build part of the neural network
+    :param cell: RNN cell
+    :param rnn_size: Size of rnns
+    :param input_data: Input data
+    :param vocab_size: Vocabulary size
+    :param embed_dim: Number of embedding dimensions
+    :return: Tuple (Logits, FinalState)
+    """
+    embed = get_embed(input_data,vocab_size,embed_dim)
+    outputs,final_state = build_rnn(cell,embed)
+    logits = tf.contrib.layers.fully_connected(outputs, vocab_size, activation_fn = None)
+    return logits, final_state
+
+
+"""
+DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
+"""
+tests.test_build_nn(build_nn)
+
+
+
+
+def get_batches(int_text, batch_size, seq_length):
+    """
+    Return batches of input and target
+    :param int_text: Text with the words replaced by their ids
+    :param batch_size: The size of batch
+    :param seq_length: The length of sequence
+    :return: Batches as a Numpy array
+    """
+    
+    n_batches = (len(int_text) // (batch_size * seq_length))
+
+    batch_origin = np.array(int_text[: n_batches * batch_size * seq_length])
+    batch_shifted = np.array(int_text[1: n_batches * batch_size * seq_length + 1])
+
+    batch_shifted[-1] = batch_origin[0]
+
+    batch_origin_reshape = np.split(batch_origin.reshape(batch_size, -1), n_batches, 1)
+    batch_shifted_reshape = np.split(batch_shifted.reshape(batch_size, -1), n_batches, 1)
+
+    batches = np.array(list(zip(batch_origin_reshape, batch_shifted_reshape)))
+    
+    return batches
+
+
+"""
+DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
+"""
+tests.test_get_batches(get_batches)
+
+
+# Number of Epochs
+num_epochs = 500
+# Batch Size
+batch_size = 256
+# RNN Size
+rnn_size = 512
+# Embedding Dimension Size
+embed_dim = 512
+# Sequence Length
+seq_length = 50
+# Learning Rate
+learning_rate = 0.002
+# Show stats for every n number of batches
+show_every_n_batches = 50
+
+"""
+DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
+"""
+save_dir = './save'
+
+
+def get_tensors(loaded_graph):
+    """
+    Get input, initial state, final state, and probabilities tensor from <loaded_graph>
+    :param loaded_graph: TensorFlow graph loaded from file
+    :return: Tuple (InputTensor, InitialStateTensor, FinalStateTensor, ProbsTensor)
+    """
+    input = loaded_graph.get_tensor_by_name("input:0")
+    initial_state = loaded_graph.get_tensor_by_name("initial_state:0")
+    final_state = loaded_graph.get_tensor_by_name("final_state:0")
+    probs = loaded_graph.get_tensor_by_name("probs:0")
+    return input, initial_state, final_state, probs
+
+
+"""
+DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
+"""
+tests.test_get_tensors(get_tensors)
+
+
+
+def pick_word(probabilities, int_to_vocab):
+    """
+    Pick the next word in the generated text
+    :param probabilities: Probabilites of the next word
+    :param int_to_vocab: Dictionary of word ids as the keys and words as the values
+    :return: String of the predicted word
+    """
+    chances = []
+
+    for idx, prob in enumerate(probabilities):
+        if prob >= 0.05:
+            chances.append(int_to_vocab[idx])
+
+    rand = np.random.randint(0, len(chances))
+
+    return str(chances[rand])
+
+
+"""
+DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
+"""
+tests.test_pick_word(pick_word)
